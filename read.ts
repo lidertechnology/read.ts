@@ -4,7 +4,7 @@ import {   collection,   getDocs,   query,   limit,   startAfter,   where,  Quer
 import { InstanciaFirebase } from './instancia';
 import { StateEnum } from '../../global/state-enum';
 
-// --- INTERFACES LOCALES PARA MAYOR COHESIÓN ---
+// --- INTERFACES LOCALES PARA MAYOR COHESIÓN ---                      ********************************          ojo este tienes dos metodos inteligentes en ligar de 3 *********************
 
 // Interfaz para los filtros de consulta, ahora local en este servicio.
 export interface Filtros {
