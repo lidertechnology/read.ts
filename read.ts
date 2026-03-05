@@ -1,82 +1,70 @@
-ce · TS
-Copiar
-
-import {
-  Injectable,
-  signal,
-  inject,
-  OnDestroy
-} from '@angular/core';
-import {
-  collection,
-  getDocs,
-  getDoc,
-  getCountFromServer,
-  query,
-  limit,
-  startAfter,
-  orderBy,
-  where,
-  onSnapshot,
-  doc,
-  QueryConstraint,
-  CollectionReference,
-  DocumentData,
-  DocumentSnapshot,
-  WhereFilterOp,
-  OrderByDirection,
-  Unsubscribe,
-  AggregateQuerySnapshot,
-  AggregateSpec
-} from 'firebase/firestore';
+import {  Injectable,  signal,  inject,  OnDestroy} from '@angular/core';
+import { collection, getDocs, getDoc, getCountFromServer, query, limit, startAfter, orderBy, where, onSnapshot, doc, QueryConstraint, CollectionReference,  DocumentData,  DocumentSnapshot,  WhereFilterOp,  OrderByDirection,  Unsubscribe,} from 'firebase/firestore';
 import { InstanciaFirebase } from './firebase-instance.service';
 
 // ═══════════════════════════════════════════════════════════════════
 // ENUMS
 // ═══════════════════════════════════════════════════════════════════
 
-export enum ReadState {
-  IDLE    = 'idle',
-  LOADING = 'cargando',
-  SUCCESS = 'exito',
-  ERROR   = 'error'
-}
+export enum ReadState {  IDLE    = 'idle',  LOADING = 'cargando',  SUCCESS = 'exito',  ERROR   = 'error'}
 
 // ═══════════════════════════════════════════════════════════════════
 // INTERFACES PÚBLICAS
 // ═══════════════════════════════════════════════════════════════════
 
-export interface Filtro {
-  field:    string;
-  operator: WhereFilterOp;
-  value:    any;
-}
-
-export interface Orden {
-  field:     string;
-  direction: OrderByDirection; // 'asc' | 'desc'
-}
-
-export interface QueryOpciones {
-  filtros?: Filtro[];
-  orden?:   Orden[];
-  limite?:  number;
-}
-
-export interface PaginatedResult<U> {
-  data:       (U & { id: string })[];
-  nextCursor: DocumentSnapshot | null;
-  total?:     number;
-}
+export interface Filtro {  field:    string;  operator: WhereFilterOp;  value:    any;}
+export interface Orden {  field:     string;  direction: OrderByDirection; }// 'asc' | 'desc'
+export interface QueryOpciones {  filtros?: Filtro[];  orden?:   Orden[];  limite?:  number;}
+export interface PaginatedResult<U> {  data:       (U & { id: string })[];  nextCursor: DocumentSnapshot | null;  total?:     number;}
 
 
 // ═══════════════════════════════════════════════════════════════════
-// SERVICIO
+// SERVICIO — Solo Lectura (Firestore)
 //
-// IMPORTANTE: Declarar en providers[] del componente para
-// garantizar instancia aislada por componente:
+// ── INSTANCIA AISLADA POR COMPONENTE ────────────────────────────
+// Declarar siempre en providers[] del @Component.
+// Cada componente recibe su propio estado (items, state, etc.).
+// Si dos componentes comparten el mismo singleton, sus datos
+// se mezclan y contaminan mutuamente.
 //
-//   @Component({ providers: [ReadService] })
+//   @Component({
+//     selector:  'app-mi-lista',
+//     providers: [ReadService],   // ← instancia propia aquí
+//     template:  `...`
+//   })
+//   export class MiListaComponent {
+//     svc = inject<ReadService<MiModelo>>(ReadService);
+//   }
+//
+// ── MÉTODOS DISPONIBLES ──────────────────────────────────────────
+// obtenerDocumentos()     Lista paginada reactiva. Scroll infinito.
+// obtenerPorId()          Un documento por ID. Soporta caché.
+// consultar()             One-shot sin tocar el estado reactivo.
+// escuchar()              Lista en tiempo real (onSnapshot).
+// escucharDocumento()     Documento único en tiempo real.
+// contarDocumentos()      Conteo sin descargar documentos.
+// buscarPorTexto()        Búsqueda por prefijo en un campo texto.
+// consultarGrupo()        Sub-colecciones con collectionGroup.
+//
+// ── REGLAS DE USO ────────────────────────────────────────────────
+// 1. Llamar reset() siempre que cambien filtros u orden,
+//    antes de volver a llamar obtenerDocumentos().
+//
+// 2. Si usas escuchar() o escucharDocumento(), cancelar
+//    la suscripción en ngOnDestroy() para evitar memory leaks:
+//      ngOnDestroy() { this.svc.detenerEscucha('mi-key'); }
+//
+// 3. El parámetro usarCache: true en obtenerPorId() y consultar()
+//    evita re-fetch mientras el TTL no expire (default 60s).
+//    Cambiar TTL con: this.svc.setCacheTTL(ms)
+//    Invalidar caché con: this.svc.invalidarCache(key?)
+//
+// ── SEÑALES PÚBLICAS ─────────────────────────────────────────────
+// items()    → (T & { id: string })[]   Documentos acumulados
+// state()    → ReadState                'idle'|'cargando'|'exito'|'error'
+// hasMore()  → boolean                  false cuando no hay más páginas
+// error()    → any                      Último error capturado
+// total()    → number | null            Resultado de contarDocumentos()
 //
 // ═══════════════════════════════════════════════════════════════════
 
